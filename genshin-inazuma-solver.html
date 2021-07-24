@@ -40,14 +40,14 @@
       function solve() {
         const N = document.getElementById("num-faces-4").checked ? 4 : 3
         const offset = N === 4 ? 0 : 1
-        const init_status = document.getElementById("current").value.split("").map(v => Number(v) - offset)
+        const init_status = document.getElementById("current").value.replace(/\s/g, "").split("").map(v => Number(v) - offset)
         const num_buttons = init_status.length
         if (num_buttons <= 0 || num_buttons > 10 || !init_status.every(s => s >= 0 && s < N)) {
           set_error(1)
           return
         }
 
-        const changes = document.getElementById("changes").value.split(",").map(v => v === "-" ? null : v.split("").map(v => Number(v)))
+        const changes = document.getElementById("changes").value.replace(/\s/g, "").split(",").map(v => v === "-" ? null : v.split("").map(v => Number(v)))
         if (changes.length != num_buttons ||
           !changes.every(arr => arr === null || arr.every(v => v >= 0 && v < num_buttons))) {
           set_error(2)
