@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+  <meta charset="utf-8">
+  <head>
+    <title>稻妻机关计算器</title>
+  </head>
+  <body>
+    <h4>机关类型</h4>
+    <div>
+      <input type="radio" id="num-faces-3" name="num-faces" value="3">
+      <label for="num-faces-3">点花瓣</label>
+    </div>
+    <div>
+      <input type="radio" id="num-faces-4" name="num-faces" value="4" checked>
+      <label for="num-faces-4">转方块</label>
+    </div>
+
+    <h4>状态影响</h4>
+    <p>从0开始给每个机关编号，如有三个方块则编号为0、1、2</p>
+    <p>输入每个机关影响的机关编号（逗号分隔），不可动机关输入 <code>-</code></p>
+    <p>如打一下0号方块会导致0、2两块方块转动，1号方块打了不会动，打2号方块只有自己转，则输入 <code>02,-,2</code></p>
+    <input id="changes">
+
+    <h4>当前状态</h4>
+    <p>点花瓣：输入1~3的数字，表示亮起来的个数</p>
+    <p>转方块：输入0~3的数字，顺时针，如左面0，背面1，右面2，正面3</p>
+    <input id="current">
+
+    <a href="javascript:" onclick="solve()">求解</a>
+
+    <h4>答案</h4>
+    <p id="result"></p>
+
+    <script>
+
+      function set_error(pos) {
+        document.getElementById("result").innerHTML = `输入错误 (${pos})`
+      }
+
+      function solve() {
+        const N = document.getElementById("num-faces-4").checked ? 4 : 3
+        const offset = N === 4 ? 0 : 1
+        console.log(N)
+        const init_status = document.getElementById("current").value.split("").map(v => Number(v) - offset)
+        const num_buttons = init_status.length
+        if (num_buttons <= 0 || num_buttons > 10 || !init_status.every(s => s >= 0 && s < N)) {
+          set_error(1)
+          return
+        }
+
+        const changes = document.getElementById("changes").value.split(",").map(v => v === "-" ? null : v.split("").map(v => Number(v)))
+        if (changes.length != num_buttons ||
+          !changes.every(arr => arr === null || arr.every(v => v >= 0 && v < num_buttons))) {
+          set_error(2)
+          return
+        }
+
+        const num_iters = Math.pow(N, num_buttons)
+        for (let i = 0; i < num_iters; ++i) {
+          const status = [...init_status]
+          const answer = []
+          for (let btn = 0; btn < num_buttons; ++btn) {
+            const rot = Math.floor(i / Math.pow(N, btn)) % N
+            const ch = changes[btn]
+            if (ch === null) {
+              answer.push(0)
+              continue
+            }
+            answer.push(rot)
+
+            ch.forEach(v => {
+              status[v] = (status[v] + rot) % N
+            })
+          }
+
+          // check answer
+          let solved = false
+          for (let key = 0; key < N; ++key) {
+            if (status.every(s => s === key)) {
+              document.getElementById("result").innerHTML = "每个机关打几次：" + answer.join(", ") + `<br />最后状态：${key+offset}`
+              solved = true
+              break
+            }
+          }
+          if (solved) {
+            break
+          }
+
+          // oops
+          if (i === num_iters - 1) {
+            document.getElementById("result").innerHTML = "无解！"
+          }
+        }
+      }
+    </script>
+  </body>
+</html>
