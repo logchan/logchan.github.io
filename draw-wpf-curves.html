@@ -1,0 +1,180 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>Draw curves in WPF efficiently | logchan&#39;s Blog</title>
+
+  
+  <meta name="author" content="logchan">
+  
+
+  
+  <meta name="description" content="Log of rendering a lot of curves in WPF Canvas.">
+  
+
+  
+  
+  <meta name="keywords" content="C#,WPF">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="Draw curves in WPF efficiently"/>
+
+  <meta property="og:site_name" content="logchan&#39;s Blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="logchan&#39;s Blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">logchan&#39;s Blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/">Home</a></li>
+      
+        <li><a href="/tools">Tools</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>Draw curves in WPF efficiently</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/draw-wpf-curves.html" rel="bookmark">
+        <time class="entry-date published" datetime="2016-12-16T17:06:15.000Z">
+          2016-12-16
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>Log of rendering a lot of curves in WPF <code>Canvas</code>.</p>
+<span id="more"></span>
+
+<p>I have a customized canvas inheriting <code>Canvas</code> and overrides the <code>OnRender(DrawingContext dc)</code> method. And I need to draw some curves. I have precomputed the points on the curve and stored them in a <code>List&lt;Tuple&lt;double, double&gt;&gt;</code> because I am drawing different parts of the curve at different time. So, it is natural to come up with</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">for (int i = start; i &lt;= end; ++i)</span><br><span class="line">&#123;</span><br><span class="line">    dc.DrawLine(CurvePen, new Point(list[i].Item1, list[i].Item2), new Point(list[i+1].Item1, list[i+1].Item2));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>However this approach is slow and CPU-intensive as hell. Guess what? I had a naive test and wrote</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">var gstr = new StringBuilder();</span><br><span class="line">gstr.Append($&quot;M &#123;list[start].Item1&#125;,&#123;list[start].Item2&#125; L &quot;);</span><br><span class="line">for (int i = start + 1; i &lt;= end; ++i)</span><br><span class="line">&#123;</span><br><span class="line">    gstr.Append($&quot;&#123;t.Item1&#125;,&#123;t.Item2&#125; &quot;);</span><br><span class="line">&#125;</span><br><span class="line">dc.DrawGeometry(null, CurvePen, Geometry.Parse(gstr.ToString()));</span><br></pre></td></tr></table></figure>
+
+<p>Basically the code constructs a <a target="_blank" rel="noopener" href="https://msdn.microsoft.com/en-us/library/ms752293(v=vs.110).aspx">Path Markup</a>, parse it to a Geometry object and draw it. It looks terrible - that’s a lot of string operations… but it is actually very, very fast. In fact, much faster than the multiple <code>DrawLine</code> calls.</p>
+<p>One possible optimization is to, apparently, precompute all the Geometry objects, although it may result in worse performance because that’s <em>a lot</em> of objects. So I’ll just stick to this construct-on-the-fly thing at the moment :P</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+      
+
+    <span class="post-categories">
+      <i class="icon-categories"></i>
+        <a href="/categories/Coding/">Coding</a>
+    </span>
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/C/">C#</a><a href="/tags/WPF/">WPF</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+	<section id="comment" class="comment">
+	  <div id="disqus_thread">
+	  <noscript>Please enable JavaScript to view the <a target="_blank" rel="noopener" href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+	  </div>
+	</section>
+	<script type="text/javascript">
+	var disqus_shortname = 'logchan';
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/count.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	</script>
+
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2023 logchan
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>

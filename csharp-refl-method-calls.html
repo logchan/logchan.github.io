@@ -1,0 +1,235 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>Optimizing C# reflection method calls | logchan&#39;s Blog</title>
+
+  
+  <meta name="author" content="logchan">
+  
+
+  
+  <meta name="description" content="TL;DR: Func&amp;lt;&amp;gt; and Action&amp;lt;&amp;gt; instead of MethodInfo.Invoke runs 50 times faster
+
+I can recall the excitement when I first learnt about reflection in C#. At that time my programming experience was limited to basic VB6 and C, so being able to browse type information was completely new to me. I was shocked and inspired by the possiblities that reflection can bring.
+Reflection enables a lot of applications. For example, GameObject.SendMessage in Unity is fulfilled by finding the method with a name via reflection and then invoking it. Another important application is generic serializers. Without reflection, serializing objects will involve the pain of writing similar routines for every class[1]. Generic serializers like XmlSerializer and BinaryFormatter have saved a huge amount of development effort.
+
+[1] Or some messy template and macro magic in C++ - see this StackOverflow answer for more.
+
+However, we may overlook the performance cost as we enjoy the convenience. The rest of this post measures the reflection method calls in C#, and propose an optimization with delegate.">
+  
+
+  
+  
+  <meta name="keywords" content="C#">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="Optimizing C# reflection method calls"/>
+
+  <meta property="og:site_name" content="logchan&#39;s Blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="logchan&#39;s Blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">logchan&#39;s Blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/">Home</a></li>
+      
+        <li><a href="/tools">Tools</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>Optimizing C# reflection method calls</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/csharp-refl-method-calls.html" rel="bookmark">
+        <time class="entry-date published" datetime="2017-03-08T17:06:15.000Z">
+          2017-03-08
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <blockquote>
+<p>TL;DR: <code>Func&lt;&gt;</code> and <code>Action&lt;&gt;</code> instead of <code>MethodInfo.Invoke</code> runs 50 times faster</p>
+</blockquote>
+<p>I can recall the excitement when I first learnt about reflection in C#. At that time my programming experience was limited to basic VB6 and C, so being able to browse type information was completely new to me. I was shocked and inspired by the possiblities that reflection can bring.</p>
+<p>Reflection enables a lot of applications. For example, <code>GameObject.SendMessage</code> in Unity is fulfilled by finding the method with a name via reflection and then invoking it. Another important application is generic serializers. Without reflection, serializing objects will involve the pain of writing similar routines for every class<sup>[1]</sup>. Generic serializers like <code>XmlSerializer</code> and <code>BinaryFormatter</code> have saved a huge amount of development effort.</p>
+<blockquote>
+<p>[1] Or some messy template and macro magic in C++ - see <a target="_blank" rel="noopener" href="http://stackoverflow.com/a/11748131">this StackOverflow answer</a> for more.</p>
+</blockquote>
+<p>However, we may overlook the performance cost as we enjoy the convenience. The rest of this post measures the reflection method calls in C#, and propose an optimization with delegate.</p>
+<span id="more"></span>
+
+<h4 id="The-scenario-problem-and-answer"><a href="#The-scenario-problem-and-answer" class="headerlink" title="The scenario, problem and answer"></a>The scenario, problem and answer</h4><p>Assume that you are writing a serializer<sup>[2]</sup>. You will need to get the property values of the object using reflection, something like:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">foreach (var prop in typeof(obj).GetProperties())</span><br><span class="line">&#123;</span><br><span class="line">    var value = prop.GetMethod.Invoke(obj, emptyArray);</span><br><span class="line">    WriteValue(value);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Intuitively, since getting properties from a class seems time consuming, you will cache the properties of the class:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">// initialize once</span><br><span class="line">_cachedPropertyLists[type] = type.GetProperties();</span><br><span class="line"></span><br><span class="line">// somewhere repeatly executed</span><br><span class="line">foreach (var prop in _cachedPropertyLists[typeof(obj)])</span><br><span class="line">&#123;</span><br><span class="line">    var value = prop.GetMethod.Invoke(obj, emptyArray);</span><br><span class="line">    WriteValue(value);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>After some profiling, you will realize that the <code>MethodInfo.Invoke</code> call slowing your serializer down. This is an unfortunate pitfall of reflection - it is slow.</p>
+<p>But why is that? Well, each time you call <code>Invoke</code>, it needs to find where the method is via some reflection APIs. With this knowledge in mind, we can find an direction to optimization: is it possible to cache the location of the method?</p>
+<p>The answer, if you come from C or C++, is immediately <em>function pointers</em>. In C#, they are <strong>Delegates</strong>. More specifically, in this case we need <code>Func&lt;,&gt;</code> (or <code>Action&lt;,&gt;</code> if you are deserializing and using setters). The concept shall be fairly simple and can be Googled so I would not go into it. What matters is how to create a delegate from a <code>MethodInfo</code>:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">// initialize once</span><br><span class="line">var func = (Func&lt;T1, T2&gt;) Delegate.CreateDelegate(typeof(Func&lt;T1, T2&gt;), method);</span><br><span class="line"></span><br><span class="line">// somewhere repeatly executed</span><br><span class="line">var data = func(input);</span><br></pre></td></tr></table></figure>
+
+<p>Note that the type of the function pointer must match the method, or an exception will be thrown at run time.</p>
+<p>How significant is this optimization? We can run a benchmark.</p>
+<blockquote>
+<p>[2] This can happen. For example, when your boss wishes to avoid the poor performance of <code>BinaryFormatter</code>.</p>
+</blockquote>
+<h4 id="Benchmark"><a href="#Benchmark" class="headerlink" title="Benchmark"></a>Benchmark</h4><p>We have a data class:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">class Data</span><br><span class="line">&#123;</span><br><span class="line">    public int A &#123; get; set; &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>And two ways to get the value of property A (plus a non-reflection one for reference). Each method measures the time to get the value <em>iterations</em> times.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br></pre></td><td class="code"><pre><span class="line">private static long GetWithMethodInfo(List&lt;Data&gt; list, int iterations)</span><br><span class="line">&#123;</span><br><span class="line">    var getterA = typeof(Data).GetProperty(&quot;A&quot;).GetMethod;</span><br><span class="line">    var sw = new Stopwatch();</span><br><span class="line"></span><br><span class="line">    sw.Start();</span><br><span class="line">    var sum = 0L;</span><br><span class="line">    var param = new object[] &#123; &#125;;</span><br><span class="line">    for (int iter = 0; iter &lt; iterations; ++iter)</span><br><span class="line">    &#123;</span><br><span class="line">        for (int i = 0; i &lt; DataSize; ++i)</span><br><span class="line">        &#123;</span><br><span class="line">            sum += (int)getterA.Invoke(list[i], param);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    sw.Stop();</span><br><span class="line"></span><br><span class="line">    Console.WriteLine($&quot;Sum: &#123;sum&#125;&quot;);</span><br><span class="line">    return sw.ElapsedMilliseconds;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">private static long GetWithFunc(List&lt;Data&gt; list, int iterations)</span><br><span class="line">&#123;</span><br><span class="line">    var func = (Func&lt;Data, int&gt;) Delegate.CreateDelegate(typeof(Func&lt;Data, int&gt;), typeof(Data).GetProperty(&quot;A&quot;).GetMethod);</span><br><span class="line">    var sw = new Stopwatch();</span><br><span class="line"></span><br><span class="line">    sw.Start();</span><br><span class="line">    var sum = 0L;</span><br><span class="line">    for (int iter = 0; iter &lt; iterations; ++iter)</span><br><span class="line">    &#123;</span><br><span class="line">        for (int i = 0; i &lt; DataSize; ++i)</span><br><span class="line">        &#123;</span><br><span class="line">            sum += func(list[i]);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    sw.Stop();</span><br><span class="line"></span><br><span class="line">    Console.WriteLine($&quot;Sum: &#123;sum&#125;&quot;);</span><br><span class="line">    return sw.ElapsedMilliseconds;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">private static long GetDirectlyFromProperty(List&lt;Data&gt; list, int iterations)</span><br><span class="line">&#123;</span><br><span class="line">    var sw = new Stopwatch();</span><br><span class="line"></span><br><span class="line">    sw.Start();</span><br><span class="line">    var sum = 0L;</span><br><span class="line">    for (int iter = 0; iter &lt; iterations; ++iter)</span><br><span class="line">    &#123;</span><br><span class="line">        for (int i = 0; i &lt; DataSize; ++i)</span><br><span class="line">        &#123;</span><br><span class="line">            sum += list[i].A;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    sw.Stop();</span><br><span class="line"></span><br><span class="line">    Console.WriteLine($&quot;Sum: &#123;sum&#125;&quot;);</span><br><span class="line">    return sw.ElapsedMilliseconds;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>To ensure fairness, only one of the methods is run in each application run:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">static void Main(string[] args)</span><br><span class="line">&#123;</span><br><span class="line">    // Parse input</span><br><span class="line">    // ...</span><br><span class="line">    // Generate data</span><br><span class="line">    // ...</span><br><span class="line">    // Go</span><br><span class="line">    long ms = 0;</span><br><span class="line">    switch (method)</span><br><span class="line">    &#123;</span><br><span class="line">        case 0:</span><br><span class="line">            ms = GetWithMethodInfo(list, iterations);</span><br><span class="line">            break;</span><br><span class="line">        case 1:</span><br><span class="line">            ms = GetWithFunc(list, iterations);</span><br><span class="line">            break;</span><br><span class="line">        case 2:</span><br><span class="line">            ms = GetDirectlyFromProperty(list, iterations);</span><br><span class="line">            break;</span><br><span class="line">        default:</span><br><span class="line">            Console.WriteLine(&quot;Unrecognized method&quot;);</span><br><span class="line">            return;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    Console.WriteLine($&quot;Ran &#123;iterations&#125; iterations in &#123;ms&#125;ms. Average: &#123;(ms / (double)iterations):N4&#125;ms&quot;);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>And, the results:</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Average Time (ms)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>MethodInfo.Invoke</td>
+<td>2.0960</td>
+</tr>
+<tr>
+<td>Func</td>
+<td>0.0380</td>
+</tr>
+<tr>
+<td>Direct Get</td>
+<td>0.0250</td>
+</tr>
+</tbody></table>
+<p>So, yes there is a huge difference between <code>MethodInfo.Invoke</code> and <code>Func</code>… a 50 times difference. Hopefully you know what to do next time you use reflection.</p>
+<p>Happy coding!</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+      
+
+    <span class="post-categories">
+      <i class="icon-categories"></i>
+        <a href="/categories/Coding/">Coding</a>
+    </span>
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/C/">C#</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+	<section id="comment" class="comment">
+	  <div id="disqus_thread">
+	  <noscript>Please enable JavaScript to view the <a target="_blank" rel="noopener" href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+	  </div>
+	</section>
+	<script type="text/javascript">
+	var disqus_shortname = 'logchan';
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/count.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	</script>
+
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2023 logchan
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>

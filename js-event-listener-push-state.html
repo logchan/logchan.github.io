@@ -1,0 +1,177 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>JavaScript event listener for history.pushState | logchan&#39;s Blog</title>
+
+  
+  <meta name="author" content="logchan">
+  
+
+  
+  <meta name="description" content="In HTML there is an event onpopstate, but not onpushstate or onalterstate. How can we monitor such state changes? The answer is to alter the history.pushState function and manually dispatch an event inside.
+More over, suppose we are writing a Chrome extension which has run_at: &amp;quot;document_start&amp;quot; that aims to capture all changes in states. Then we need to inject a &amp;lt;script&amp;gt; tag into the HTML, and we must do it as early as possible - right after the &amp;lt;head&amp;gt; tag is available. To achieve this we use a MutationObserver.">
+  
+
+  
+  
+  <meta name="keywords" content="JavaScript,HTML">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="JavaScript event listener for history.pushState"/>
+
+  <meta property="og:site_name" content="logchan&#39;s Blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="logchan&#39;s Blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">logchan&#39;s Blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/">Home</a></li>
+      
+        <li><a href="/tools">Tools</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>JavaScript event listener for history.pushState</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/js-event-listener-push-state.html" rel="bookmark">
+        <time class="entry-date published" datetime="2018-01-13T17:06:15.000Z">
+          2018-01-13
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>In HTML there is an event <code>onpopstate</code>, but not <code>onpushstate</code> or <code>onalterstate</code>. How can we monitor such state changes? The answer is to alter the <code>history.pushState</code> function and manually dispatch an event inside.</p>
+<p>More over, suppose we are writing a Chrome extension which has <code>run_at: &quot;document_start&quot;</code> that aims to capture all changes in states. Then we need to inject a <code>&lt;script&gt;</code> tag into the HTML, and we must do it as early as possible - right after the <code>&lt;head&gt;</code> tag is available. To achieve this we use a <a target="_blank" rel="noopener" href="https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver">MutationObserver</a>.</p>
+<span id="more"></span>
+
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">&#x27;use strict&#x27;</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> observer = <span class="literal">null</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">insertScript</span>(<span class="params"></span>) &#123;</span><br><span class="line">	<span class="comment">// script adapted from https://stackoverflow.com/a/25673911</span></span><br><span class="line">	<span class="keyword">var</span> s = <span class="string">&#x27;&#x27;</span>;</span><br><span class="line">	s += <span class="string">&#x27;var _wr = function(type) &#123; var orig = history[type]; &#x27;</span>;</span><br><span class="line">	s += <span class="string">&#x27;return function() &#123; var rv = orig.apply(this, arguments);&#x27;</span>;</span><br><span class="line">	s += <span class="string">&#x27;var e = new Event(type); e.arguments = arguments; window.dispatchEvent(e);&#x27;</span>;</span><br><span class="line">	s += <span class="string">&#x27;return rv; &#125;; &#125;;&#x27;</span>;</span><br><span class="line">	s += <span class="string">&#x27;history.pushState = _wr(&quot;pushState&quot;);&#x27;</span>;</span><br><span class="line">	s += <span class="string">&#x27;console.log(&quot;pushState altered&quot;)&#x27;</span>;</span><br><span class="line">	</span><br><span class="line">	<span class="keyword">var</span> se = <span class="variable language_">document</span>.<span class="title function_">createElement</span>(<span class="string">&#x27;script&#x27;</span>);</span><br><span class="line">	<span class="keyword">var</span> head = <span class="variable language_">document</span>.<span class="title function_">getElementsByTagName</span>(<span class="string">&#x27;head&#x27;</span>)[<span class="number">0</span>];</span><br><span class="line">	se.<span class="property">innerHTML</span> = s;</span><br><span class="line">	head.<span class="title function_">insertBefore</span>(se, <span class="literal">null</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">observeHead</span>(<span class="params"></span>) &#123;</span><br><span class="line">	observer = <span class="keyword">new</span> <span class="title class_">MutationObserver</span>(<span class="keyword">function</span>(<span class="params">list</span>) &#123;</span><br><span class="line">		<span class="keyword">for</span> (<span class="keyword">var</span> mutation <span class="keyword">of</span> list) &#123;</span><br><span class="line">			<span class="keyword">if</span> (mutation.<span class="property">addedNodes</span>.<span class="property">length</span> === <span class="number">0</span>) <span class="keyword">continue</span>;</span><br><span class="line">			<span class="keyword">var</span> node = mutation.<span class="property">addedNodes</span>[<span class="number">0</span>];</span><br><span class="line">			<span class="keyword">if</span> (node.<span class="property">tagName</span> !== <span class="string">&#x27;HEAD&#x27;</span>) <span class="keyword">continue</span>;</span><br><span class="line">			</span><br><span class="line">			observer.<span class="title function_">disconnect</span>();</span><br><span class="line">			<span class="title function_">insertScript</span>();</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;);</span><br><span class="line">	</span><br><span class="line">	observer.<span class="title function_">observe</span>(<span class="variable language_">document</span>, &#123; <span class="attr">childList</span>: <span class="literal">true</span>, <span class="attr">subtree</span>: <span class="literal">true</span> &#125;);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="title function_">observeHead</span>();</span><br><span class="line"></span><br><span class="line"><span class="variable language_">window</span>.<span class="title function_">addEventListener</span>(<span class="string">&#x27;pushState&#x27;</span>, <span class="keyword">function</span>(<span class="params">ev</span>) &#123;</span><br><span class="line">	<span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&#x27;pushState!&#x27;</span>);</span><br><span class="line">&#125;);</span><br></pre></td></tr></table></figure>
+
+<p>The code for altering the pushState function comes from <a target="_blank" rel="noopener" href="https://stackoverflow.com/a/25673911">this StackOverflow answer</a></p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+      
+
+    <span class="post-categories">
+      <i class="icon-categories"></i>
+        <a href="/categories/Coding/">Coding</a>
+    </span>
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/JavaScript/">JavaScript</a><a href="/tags/HTML/">HTML</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+	<section id="comment" class="comment">
+	  <div id="disqus_thread">
+	  <noscript>Please enable JavaScript to view the <a target="_blank" rel="noopener" href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+	  </div>
+	</section>
+	<script type="text/javascript">
+	var disqus_shortname = 'logchan';
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/count.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	</script>
+
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2023 logchan
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>

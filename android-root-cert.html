@@ -1,0 +1,184 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>Add root certificate to Android system | logchan&#39;s Blog</title>
+
+  
+  <meta name="author" content="logchan">
+  
+
+  
+  <meta name="description" content="Starting from Android 7 Nougat, applications must explicitly trust user-installed certificates for them to be effective. To bypass this, we can install our own root certificate in the system certificate store.
+Requirements: the phone must be rooted.">
+  
+
+  
+  
+  <meta name="keywords" content="Android">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="Add root certificate to Android system"/>
+
+  <meta property="og:site_name" content="logchan&#39;s Blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="logchan&#39;s Blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">logchan&#39;s Blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/">Home</a></li>
+      
+        <li><a href="/tools">Tools</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>Add root certificate to Android system</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/android-root-cert.html" rel="bookmark">
+        <time class="entry-date published" datetime="2019-08-07T16:06:15.000Z">
+          2019-08-07
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>Starting from Android 7 Nougat, applications must explicitly trust user-installed certificates for them to be effective. To bypass this, we can install our own root certificate in the system certificate store.</p>
+<p>Requirements: the phone must be rooted.</p>
+<span id="more"></span>
+
+<h2 id="Step-1-prepare-the-certificate"><a href="#Step-1-prepare-the-certificate" class="headerlink" title="Step 1: prepare the certificate"></a>Step 1: prepare the certificate</h2><p>If the certificate is DER (e.g. exported from Fiddler), convert it to PEM. Its name can be generated with OpenSSL. Below is a PowerShell script that does all.</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">param</span>(</span><br><span class="line">    [<span class="type">Parameter</span>(<span class="type">Mandatory</span>=<span class="variable">$true</span>)]</span><br><span class="line">    [<span class="built_in">string</span>]<span class="variable">$Path</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="variable">$s</span> = (&amp;<span class="string">&quot;D:\Tools\openssl\openssl.exe&quot;</span> x509 <span class="literal">-inform</span> DER <span class="literal">-subject_hash_old</span> <span class="operator">-in</span> <span class="variable">$Path</span> <span class="number">2</span>&gt;<span class="variable">$null</span>)</span><br><span class="line"><span class="variable">$s</span> = <span class="variable">$s</span>[<span class="number">0</span>]</span><br><span class="line"><span class="variable">$name</span> = <span class="string">&quot;<span class="variable">$s</span>.0&quot;</span></span><br><span class="line"><span class="built_in">Write-Host</span> <span class="variable">$name</span></span><br><span class="line"><span class="variable">$fi</span> = <span class="built_in">New-Object</span> <span class="string">&quot;System.IO.FileInfo&quot;</span> <span class="literal">-ArgumentList</span> <span class="variable">$Path</span></span><br><span class="line"><span class="variable">$newName</span> = <span class="string">&quot;<span class="variable">$</span>(<span class="variable">$fi</span>.Directory.FullName)\<span class="variable">$name</span>&quot;</span></span><br><span class="line"><span class="built_in">Write-Host</span> <span class="variable">$newName</span></span><br><span class="line"><span class="variable">$s</span> = (&amp;<span class="string">&quot;D:\Tools\openssl\openssl.exe&quot;</span> x509 <span class="literal">-inform</span> DER <span class="operator">-in</span> <span class="variable">$Path</span> <span class="number">2</span>&gt;<span class="variable">$null</span>)</span><br><span class="line">[<span class="type">System.IO.File</span>]::WriteAllLines(<span class="variable">$newName</span>, <span class="variable">$s</span>)</span><br></pre></td></tr></table></figure>
+
+<h2 id="Step-2-install-the-certificate"><a href="#Step-2-install-the-certificate" class="headerlink" title="Step 2: install the certificate"></a>Step 2: install the certificate</h2><p>Connect the phone to host, then:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">adb root</span><br><span class="line">adb push e5c3944b.0 /sdcard/</span><br><span class="line">adb shell</span><br></pre></td></tr></table></figure>
+
+<p>Now, in adb shell:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">mount -o remount,rw /system</span><br><span class="line"><span class="built_in">cd</span> /system/etc/security/cacerts</span><br><span class="line"><span class="built_in">mv</span> /sdcard/e5c3944b.0 .</span><br><span class="line"><span class="built_in">chown</span> root:root e5c3944b.0</span><br><span class="line"><span class="built_in">chmod</span> 644 e5c3944b.0</span><br><span class="line">mount -o remount,ro /system</span><br><span class="line"><span class="built_in">exit</span></span><br></pre></td></tr></table></figure>
+
+<p>Reboot the phone, done.</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+      
+
+    <span class="post-categories">
+      <i class="icon-categories"></i>
+        <a href="/categories/Using-Computers/">Using Computers</a>
+    </span>
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/Android/">Android</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+	<section id="comment" class="comment">
+	  <div id="disqus_thread">
+	  <noscript>Please enable JavaScript to view the <a target="_blank" rel="noopener" href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+	  </div>
+	</section>
+	<script type="text/javascript">
+	var disqus_shortname = 'logchan';
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/count.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	</script>
+
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2023 logchan
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>

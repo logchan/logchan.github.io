@@ -1,0 +1,182 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>关于雀魂公平性与“牌山声明”的思考 | logchan&#39;s Blog</title>
+
+  
+  <meta name="author" content="logchan">
+  
+
+  
+  <meta name="description" content="最近开始玩雀魂了。我也就自然而然地开始考虑：对于这种运气成分很重的游戏，怎样保证运营方公平对待玩家、不因为猫粮购买量控制胜率？现在CRT这样的高水平赛事也在雀魂上举办了，运营能否干预比赛结果就更为重要。我们先看看雀魂现在是怎么做的，以下内容摘自萌娘百科。
+
+雀魂保证游戏生成完全随机，在游戏开始之时牌">
+  
+
+  
+  
+  <meta name="keywords" content="">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="关于雀魂公平性与“牌山声明”的思考"/>
+
+  <meta property="og:site_name" content="logchan&#39;s Blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="logchan&#39;s Blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">logchan&#39;s Blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/">Home</a></li>
+      
+        <li><a href="/tools">Tools</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>关于雀魂公平性与“牌山声明”的思考</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/mahjong-soul-rng.html" rel="bookmark">
+        <time class="entry-date published" datetime="2020-05-25T01:14:44.000Z">
+          2020-05-24
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>最近开始玩雀魂了。我也就自然而然地开始考虑：对于这种运气成分很重的游戏，怎样保证运营方公平对待玩家、不因为猫粮购买量控制胜率？现在CRT这样的高水平赛事也在雀魂上举办了，运营能否干预比赛结果就更为重要。我们先看看雀魂现在是怎么做的，以下内容摘自<a target="_blank" rel="noopener" href="https://zh.moegirl.org/%E9%9B%80%E9%AD%82%E9%BA%BB%E5%B0%86">萌娘百科</a>。</p>
+<blockquote>
+<p>雀魂保证游戏生成完全随机，在游戏开始之时牌山序列已经固定，不会根据场面情况针对性地发牌。为证明此声明，游戏引入了MD5码验证系统。MD5码被广泛的应用于加密解密技术，它通过一个固定的算法把输入的字节（牌山序列）转化成一个字符串码。MD5码具有单向性、唯一性和混沌性的。</p>
+</blockquote>
+<blockquote>
+<p>对局中，玩家可以点击左上角的宝牌位置查看本次对局牌山生成MD5码并记录下来。MD5码是每一次配牌生成一次的。对局结束后，玩家可以在牌谱中对照每一个小局的MD5码是否相同。以此验证游戏中给的MD5码没有给错。 </p>
+</blockquote>
+<blockquote>
+<p>本文引自萌娘百科(<a target="_blank" rel="noopener" href="https://zh.moegirl.org),文字内容默认使用《知识共享/">https://zh.moegirl.org)，文字内容默认使用《知识共享</a> 署名-非商业性使用-相同方式共享 3.0》协议。</p>
+</blockquote>
+<p>的确，MD5验证牌山代码可以保证发牌姬不会在对局中针对性地发牌，但是它忽略了另一个问题：</p>
+<blockquote>
+<p>如果运营想给玩家发个天和四暗刻单骑怎么办？</p>
+</blockquote>
+<p>换言之，这个系统还是不能保证运营没有控制玩家手牌好坏、从而操作一局甚至一场比赛的结果。个人来说，我愿意相信猫粮没有这么做。但当你考虑密码学问题（都上MD5了），信任就只能基于“技术上不可行（一般指算力不足）”了。</p>
+<p>于是我们希望解决的问题是：怎样让玩家相信运营没有控制牌山？我第一时间想到的是这样的一个协议：</p>
+<ol>
+<li>公开由随机数种子生成牌山的代码，公开一段长字符串（app）。</li>
+<li>在每局的开始时，生成一个随机数<code>X</code>。向玩家公开 <code>SHA256(X)</code>，并把 <code>SHA256(X||app)</code> 作为种子生成牌山。</li>
+<li>在对局结束时公开 <code>X</code>。玩家可以验证两个哈希值和牌山生成过程。</li>
+</ol>
+<p>这样做保证了运营不能刻意构造一个牌山，因为即使可以从牌山倒退回需要的种子（这已经很难了，尤其是代码需要被公开审查的情况下），也无法从种子推出 <code>X</code>。<strong>但是</strong>，运营可以用一台小霸王不停生成牌山并保存符合某些条件（比如天和）的 <code>X</code> 日后使用。因此这个协议也并不完美。</p>
+<p>这里的问题是，运营仍然可以选择 <code>X</code>。于是我们可以稍微修改一下“生成一个随机数<code>X</code>”这一步：由每一个玩家（客户端）生成一个随机数，最终 <code>X</code> 为这些随机数拼接后的<code>SHA256</code>哈希值。游戏后，玩家们（尤其是比赛场）可以线下验证各自的随机数。</p>
+<p>当然这个协议也只是一时兴起的产物，可能有其他问题，不知各位看官有什么想法。</p>
+<p>另外，在密码学中有一个有趣的问题：怎样让两个人通过电话打扑克，同时保证公平性？利用这个问题的解法，应该可以设计一个由客户端负责合作洗牌的协议。这就留给读者作为练习了（？）</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+	<section id="comment" class="comment">
+	  <div id="disqus_thread">
+	  <noscript>Please enable JavaScript to view the <a target="_blank" rel="noopener" href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+	  </div>
+	</section>
+	<script type="text/javascript">
+	var disqus_shortname = 'logchan';
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/count.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	</script>
+
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2023 logchan
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>

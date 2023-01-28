@@ -1,0 +1,211 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>Practical multiple providers in Entity Framework Core | logchan&#39;s Blog</title>
+
+  
+  <meta name="author" content="logchan">
+  
+
+  
+  <meta name="description" content="I’ve been developing an ASP.Net Core backend. Naturally, Entity Framework (EF) Core is used as the object-database mapper.
+One cool thing about EF is that it supports many database providers: sqlite, postgres, mssql, etc. Therefore, I decided to allow configuration-based provider selection. The site administrator can choose a preferred db provider in configuration:
+1234&amp;#123;    &amp;quot;DbProvider&amp;quot;: &amp;quot;sqlite&amp;quot;,    &amp;quot;DbConnString&amp;quot;: &amp;quot;DataSource=/tmp/db.sqlite&amp;quot;,&amp;#125;
+
+Unfortunately, this is one of a few things that are, albeit documented, quite poorly described in MSDN. After spending an hour to figure out everything not mentioned in the docs, I came up with my own pattern for this, and this post is to keep a reference for myself. Hopefully, others can also benefit from this.">
+  
+
+  
+  
+  <meta name="keywords" content="CSharp,dotnet core">
+  
+
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta property="og:title" content="Practical multiple providers in Entity Framework Core"/>
+
+  <meta property="og:site_name" content="logchan&#39;s Blog"/>
+
+  
+  <meta property="og:image" content="/favicon.ico"/>
+  
+
+  <link href="/favicon.ico" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="logchan&#39;s Blog" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+<div class="blog">
+  <div class="content">
+
+    <header>
+  <div class="site-branding">
+    <h1 class="site-title">
+      <a href="/">logchan&#39;s Blog</a>
+    </h1>
+    <p class="site-description"></p>
+  </div>
+  <nav class="site-navigation">
+    <ul>
+      
+        <li><a href="/">Home</a></li>
+      
+        <li><a href="/tools">Tools</a></li>
+      
+    </ul>
+  </nav>
+</header>
+
+    <main class="site-main posts-loop">
+    <article>
+
+  
+    
+    <h3 class="article-title"><span>Practical multiple providers in Entity Framework Core</span></h3>
+    
+  
+
+  <div class="article-top-meta">
+    <span class="posted-on">
+      <a href="/efcore-multiple-providers.html" rel="bookmark">
+        <time class="entry-date published" datetime="2020-07-23T13:08:31.000Z">
+          2020-07-23
+        </time>
+      </a>
+    </span>
+  </div>
+
+
+  
+
+  <div class="article-content">
+    <div class="entry">
+      
+        <p>I’ve been developing an ASP.Net Core backend. Naturally, Entity Framework (EF) Core is used as the object-database mapper.</p>
+<p>One cool thing about EF is that it supports many database providers: <code>sqlite</code>, <code>postgres</code>, <code>mssql</code>, etc. Therefore, I decided to allow configuration-based provider selection. The site administrator can choose a preferred db provider in configuration:</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;DbProvider&quot;</span><span class="punctuation">:</span> <span class="string">&quot;sqlite&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;DbConnString&quot;</span><span class="punctuation">:</span> <span class="string">&quot;DataSource=/tmp/db.sqlite&quot;</span><span class="punctuation">,</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>Unfortunately, this is one of a few things that are, albeit <a target="_blank" rel="noopener" href="https://docs.microsoft.com/en-us/ef/core/managing-schemas/migrations/providers">documented</a>, quite poorly described in MSDN. After spending an hour to figure out everything <em>not</em> mentioned in the docs, I came up with my own pattern for this, and this post is to keep a reference for myself. Hopefully, others can also benefit from this.</p>
+<span id="more"></span>
+
+<h1 id="The-usual-scenerio"><a href="#The-usual-scenerio" class="headerlink" title="The usual scenerio"></a>The usual scenerio</h1><p>Usually, you have a <code>DbContext</code> subclass, <code>class MyDb : DbContext</code>. Then, it should have a constructor:</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">partial</span> <span class="keyword">class</span> <span class="title">MyDb</span> : <span class="title">DbContext</span> &#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">MyDb</span>(<span class="params">DbContextOptions&lt;MyDb&gt; options</span>) : <span class="title">base</span>(<span class="params">options</span>)</span> &#123;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>And you call <code>AddDbContext</code> in <code>Startup.ConfigureServices</code>:</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Configure database</span></span><br><span class="line"><span class="keyword">switch</span> (config.DbProvider.ToLower()) &#123;</span><br><span class="line">    <span class="keyword">case</span> <span class="string">&quot;sqlite&quot;</span>: &#123;</span><br><span class="line">        services.AddDbContext&lt;MyDb&gt;(options =&gt; &#123; options.UseSqlite(config.DbConnString); &#125;);</span><br><span class="line">    &#125;</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    <span class="keyword">case</span> <span class="string">&quot;postgres&quot;</span>: &#123;</span><br><span class="line">        services.AddDbContext&lt;MyDb&gt;(options =&gt; options.UseNpgsql(config.DbConnString));</span><br><span class="line">    &#125;</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    <span class="literal">default</span>: &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> Exception(<span class="string">$&quot;DbProvider not recognized: <span class="subst">&#123;config.DbProvider&#125;</span>&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>If you don’t use EF migrations, you’re done.</strong> This will work perfectly fine, as long as you configure the database and create it in <code>Startup.Configure</code>:</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">using</span> (<span class="keyword">var</span> db = services.GetService&lt;MyDb&gt;()) &#123;</span><br><span class="line">    db.Database.EnsureCreated();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>However, for migrations to work, you need <em>more</em> than what the <a target="_blank" rel="noopener" href="https://docs.microsoft.com/en-us/ef/core/managing-schemas/migrations/providers">documentation</a> says.</p>
+<h1 id="Subclassing-DbContext"><a href="#Subclassing-DbContext" class="headerlink" title="Subclassing DbContext"></a>Subclassing DbContext</h1><p>The documentation says that you should subclass <code>MyDb</code>, and override its <code>OnConfiguring</code> method to use the desired provider. If you do follow it, your code won’t compile: you’ll need an additional default constructor for your <code>MyDb</code> class.</p>
+<p>Another missing part in the document is that you’ll need to use your subclasses in service configuration. Therefore, they need constructors expecting <code>DbContextOptions&lt;T&gt;</code>, an appropriate constructor should be added to <code>MyDb</code> as well.</p>
+<p>Finally, for the similar reason, your <code>OnConfiguring</code> method must exist <strong>conditionally</strong>. In particular, it must be there <strong>only</strong> when the binary is built for EF designer tool. Otherwise, it overwrites any configuration you have in normal builds. Therefore, you have to put the <code>OnConfiguring</code> method in an <code>#if</code> block, and create a project configuration (I called mine DebugEf) that defines the flag <code>DEBUG_EF</code>.</p>
+<p>In summary, to support <code>sqlite</code> and <code>npgsql</code>, you need two auxiliary classes:</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title">SqliteMyDb</span> : <span class="title">MyDb</span> &#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">SqliteMyDb</span>()</span> &#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">SqliteMyDb</span>(<span class="params">DbContextOptions&lt;SqliteMyDb&gt; options</span>) : <span class="title">base</span>(<span class="params">options</span>)</span> &#123;</span><br><span class="line">    &#125;</span><br><span class="line"><span class="meta">#<span class="keyword">if</span> DEBUG_EF</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">override</span> <span class="keyword">void</span> <span class="title">OnConfiguring</span>(<span class="params">DbContextOptionsBuilder options</span>)</span> &#123;</span><br><span class="line">        options.UseSqlite(<span class="string">&quot;DataSource=&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title">NpgsqlMyDb</span> : <span class="title">MyDb</span> &#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">NpgsqlMyDb</span>()</span> &#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">NpgsqlMyDb</span>(<span class="params">DbContextOptions&lt;NpgsqlMyDb&gt; options</span>) : <span class="title">base</span>(<span class="params">options</span>)</span> &#123;</span><br><span class="line">    &#125;</span><br><span class="line"><span class="meta">#<span class="keyword">if</span> DEBUG_EF</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">override</span> <span class="keyword">void</span> <span class="title">OnConfiguring</span>(<span class="params">DbContextOptionsBuilder options</span>)</span> &#123;</span><br><span class="line">        options.UseNpgsql(<span class="string">&quot;DataSource=&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>And the <code>MyDb</code> class need two extra constructors:</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">partial</span> <span class="keyword">class</span> <span class="title">MyDb</span> : <span class="title">DbContext</span> &#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">MyDb</span>()</span> &#123;&#125;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">MyDb</span>(<span class="params">DbContextOptions&lt;MyDb&gt; options</span>) : <span class="title">base</span>(<span class="params">options</span>)</span> &#123;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="title">MyDb</span>(<span class="params">DbContextOptions options</span>) : <span class="title">base</span>(<span class="params">options</span>)</span> &#123;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="Creating-migrations"><a href="#Creating-migrations" class="headerlink" title="Creating migrations"></a>Creating migrations</h1><p>Simply create a migration for each provider. Notice <code>--configuration</code>.</p>
+<figure class="highlight cmd"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">dotnet ef migrations add InitialCreate --context SqliteMyDb --output-<span class="built_in">dir</span> Migrations/Sqlite --configuration DebugEf</span><br><span class="line">dotnet ef migrations add InitialCreate --context NpgsqlMyDb --output-<span class="built_in">dir</span> Migrations/Npgsql --configuration DebugEf</span><br></pre></td></tr></table></figure>
+
+<p>When adding more migrations in the future, <code>--output-dir</code> isn’t required, but <code>--configuration</code> shall be kept.</p>
+<h1 id="Adding-services"><a href="#Adding-services" class="headerlink" title="Adding services"></a>Adding services</h1><p>In your application, you should continue to use <code>MyDb</code>. However, for EF to determine <em>which</em> migration to use, you have to call <code>services.GetService&lt;T&gt;</code> where <code>T</code> is one of the subclasses (instead of <code>MyDb</code>).</p>
+<p>Therefore, in <code>Startup.ConfigureServices</code>, register the subclasses:</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Configure database</span></span><br><span class="line"><span class="keyword">switch</span> (config.DbProvider.ToLower()) &#123;</span><br><span class="line">    <span class="keyword">case</span> <span class="string">&quot;sqlite&quot;</span>: &#123;</span><br><span class="line">        services.AddDbContext&lt;MyDb&gt;(options =&gt; &#123; options.UseSqlite(config.DbConnString); &#125;);</span><br><span class="line">        services.AddDbContext&lt;SqliteMyDb&gt;(options =&gt; &#123; options.UseSqlite(config.DbConnString); &#125;);</span><br><span class="line">    &#125;</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    <span class="keyword">case</span> <span class="string">&quot;postgres&quot;</span>: &#123;</span><br><span class="line">        services.AddDbContext&lt;MyDb&gt;(options =&gt; options.UseNpgsql(config.DbConnString));</span><br><span class="line">        services.AddDbContext&lt;NpgsqlMyDb&gt;(options =&gt; options.UseNpgsql(config.DbConnString));</span><br><span class="line">    &#125;</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    <span class="literal">default</span>: &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> Exception(<span class="string">$&quot;DbProvider not recognized: <span class="subst">&#123;config.DbProvider&#125;</span>&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Then, in <code>Startup.Configure</code>, do the migrations:</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">ProcessDb</span>&lt;<span class="title">T</span>&gt;() <span class="keyword">where</span> T : MyDb</span> &#123;</span><br><span class="line">    <span class="keyword">using</span> <span class="keyword">var</span> db = services.GetService&lt;T&gt;();</span><br><span class="line">    db.Database.Migrate();</span><br><span class="line"></span><br><span class="line">    <span class="comment">// ... perform other startup tasks with db</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">switch</span> (config.DbProvider.ToLower()) &#123;</span><br><span class="line">    <span class="keyword">case</span> <span class="string">&quot;sqlite&quot;</span>: &#123;</span><br><span class="line">        ProcessDb&lt;SqliteMyDb&gt;();</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">case</span> <span class="string">&quot;postgres&quot;</span>: &#123;</span><br><span class="line">        ProcessDb&lt;NpgsqlMyDb&gt;();</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="literal">default</span>: &#123;</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> Exception();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>In summary, for each extra provider, add one subclass, a two-line <code>case</code> in <code>ConfigureServices</code>, and a <code>case</code> in <code>Configure</code>.</p>
+
+      
+    </div>
+
+  </div>
+
+  <div class="article-footer">
+    <div class="article-meta pull-left">
+
+    
+      
+
+    <span class="post-categories">
+      <i class="icon-categories"></i>
+        <a href="/categories/Coding/">Coding</a>
+    </span>
+    
+
+    
+    
+
+    <span class="post-tags">
+      <i class="icon-tags"></i>
+        <a href="/tags/CSharp/">CSharp</a><a href="/tags/dotnet-core/">dotnet core</a>
+    </span>
+    
+
+    </div>
+
+    
+  </div>
+</article>
+
+  
+
+
+
+	<section id="comment" class="comment">
+	  <div id="disqus_thread">
+	  <noscript>Please enable JavaScript to view the <a target="_blank" rel="noopener" href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+	  </div>
+	</section>
+	<script type="text/javascript">
+	var disqus_shortname = 'logchan';
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	(function(){
+	  var dsq = document.createElement('script');
+	  dsq.type = 'text/javascript';
+	  dsq.async = true;
+	  dsq.src = '//' + disqus_shortname + '.disqus.com/count.js';
+	  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+	}());
+	</script>
+
+
+
+
+
+
+
+    </main>
+
+    <footer class="site-footer">
+  <p class="site-info">
+    Proudly powered by <a href="https://hexo.io/" target="_blank">Hexo</a> and
+    Theme by <a href="https://github.com/CodeDaraW/Hacker" target="_blank">Hacker</a>
+    </br>
+    
+    &copy; 2023 logchan
+    
+  </p>
+</footer>
+    
+    
+  </div>
+</div>
+</body>
+</html>
