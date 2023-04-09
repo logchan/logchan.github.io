@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/chuni/static/css/main.a81a0605.css",
-    "main.js": "/chuni/static/js/main.8de66c11.js",
+    "main.js": "/chuni/static/js/main.ef3f417c.js",
     "index.html": "/chuni/index.html",
     "main.a81a0605.css.map": "/chuni/static/css/main.a81a0605.css.map",
-    "main.8de66c11.js.map": "/chuni/static/js/main.8de66c11.js.map"
+    "main.ef3f417c.js.map": "/chuni/static/js/main.ef3f417c.js.map"
   },
   "entrypoints": [
     "static/css/main.a81a0605.css",
-    "static/js/main.8de66c11.js"
+    "static/js/main.ef3f417c.js"
   ]
 }
