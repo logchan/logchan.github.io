@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/sane-sg23/static/css/main.e7aee08a.css",
+    "main.js": "/sane-sg23/static/js/main.709d37d4.js",
+    "index.html": "/sane-sg23/index.html",
+    "main.e7aee08a.css.map": "/sane-sg23/static/css/main.e7aee08a.css.map",
+    "main.709d37d4.js.map": "/sane-sg23/static/js/main.709d37d4.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.e7aee08a.css",
+    "static/js/main.709d37d4.js"
+  ]
+}
