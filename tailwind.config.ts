@@ -8,6 +8,12 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      flexGrow: {
+        2: "2",
+      },
+      aspectRatio: {
+        "project-thumbnail": "4/3",
+      },
       animation: {
         "spin-slow": "spin 30s linear infinite",
       },
